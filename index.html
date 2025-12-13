@@ -1,6 +1,12 @@
-<link rel="stylesheet" href="style.css">
-
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strength Calculator</title> 
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
     <header>
         <h1>Strength Calculator</h1> 
@@ -42,6 +48,7 @@
                 <label for="actualCE1RM" style="margin-top: 25px; color: #a3ff00;">**Analyze Imbalance**</label>
                 <p style="font-size: 0.9em; margin-top: -10px; color: #8b949e;">Enter your actual 1RM for <span id="ceActualName" style="color: #c9d1d9;">...</span> below:</p>
                 <input type="number" id="actualCE1RM" placeholder="Enter your best lift here (Optional)">
+                <button id="analyzeButton">ANALYZE IMBALANCE</button>
             </div>
         </div>
 
@@ -73,4 +80,6 @@
         </div>
     </main>
 
-    <script src="app.js"></script>
+    <script src="app.js"></script> 
+</body>
+</html>
