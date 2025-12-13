@@ -362,3 +362,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trigger initial setup
     updateUIText(); 
 });
+
