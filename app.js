@@ -22,7 +22,7 @@ const strengthStandards = {
 };
 
 
-// B. Conversion Ratios Data (14 Total Pairings - Unchanged)
+// B. Conversion Ratios Data (14 Total Pairings)
 const conversionRatios = [
     {id: 'bb_db_bench', inputExercise: 'Barbell Bench Press', complementaryExercise: 'Dumbbell Bench Press', inputUnit: 'Bar Total Weight', outputUnit: 'Total Dumbbell Weight', ratioRange: { low: 0.70, high: 0.85 }, requiresBodyWeight: false, notes: 'Barbell to Dumbbell: Lower max due to increased stability demand and bilateral deficit.'},
     {id: 'db_bb_bench', inputExercise: 'Dumbbell Bench Press', complementaryExercise: 'Barbell Bench Press', inputUnit: 'Total Dumbbell Weight', outputUnit: 'Bar Total Weight', ratioRange: { low: 1.18, high: 1.43 }, requiresBodyWeight: false, notes: 'Dumbbell to Barbell: Higher max due to fixed bar path and use of both limbs together.'},
@@ -37,7 +37,7 @@ const conversionRatios = [
     {id: 'leg_press_squat', inputExercise: 'Leg Press', complementaryExercise: 'Back Squat', inputUnit: 'Sled Total Weight', outputUnit: 'Bar Total Weight', ratioRange: { low: 0.50, high: 0.65 }, requiresBodyWeight: false, notes: 'Leg Press to Squat: Loss of stability and reliance on core/torso strength significantly reduces the max load.'},
     {id: 'squat_leg_press', inputExercise: 'Back Squat', complementaryExercise: 'Leg Press', inputUnit: 'Bar Total Weight', outputUnit: 'Sled Total Weight', ratioRange: { low: 1.54, high: 2.00 }, requiresBodyWeight: false, notes: 'Squat to Leg Press: Removal of core/spinal stability limits allows for a massive increase in weight.'},
     {id: 'squat_lunge', inputExercise: 'Back Squat', complementaryExercise: 'Walking Lunge', inputUnit: 'Bar Total Weight', outputUnit: 'Total Lunge Load (BW + Weight)', requiresBodyWeight: true, ratioRange: { low: 0.50, high: 0.60 }, notes: 'Squat to Lunge: Unilateral stability and balance requirements significantly cut the total load.'},
-    {id: 'lunge_squat', inputExercise: 'Walking Lunge', complementaryExercise: 'Back Squat', inputUnit: 'Total Lunge Load (BW + Weight)', outputUnit: 'Bar Total Weight', requiresBodyWeight: true, ratioRange: { low: 1.67, high: 2.00 }, notes: 'Lunge to Squat: Moving from high instability to stability greatly increases the possible 1RM.'}
+    {id: 'lunge_squat', inputExercise: 'Walking Lunge', complementaryExercise: 'Back Squat', inputUnit: 'Total Lunge Load (BW + Weight)', outputUnit: 'Bar Total Weight', ratioRange: { low: 1.67, high: 2.00 }, requiresBodyWeight: true, notes: 'Lunge to Squat: Moving from high instability to stability greatly increases the possible 1RM.'}
 ];
 
 
@@ -96,15 +96,38 @@ function getStrengthRating(ie1RM, gender, exerciseName) {
 function getRatingSource(results, gender) {
     const standards = strengthStandards[gender];
 
+    // Case 1: Standard exists for the Input Exercise
     if (standards && standards[results.inputExercise]) {
         return { rating1RM: results.ie1RM, ratingExerciseName: results.inputExercise };
     }
     
+    // Case 2: Standard exists for the Complementary Exercise (use max prediction)
     if (standards && standards[results.complementaryExercise]) {
         return { rating1RM: results.ce1RMHigh, ratingExerciseName: results.complementaryExercise };
     }
     
+    // Case 3: No standard available
     return { rating1RM: 0, ratingExerciseName: results.inputExercise };
+}
+
+function analyzeImbalance(actualCE1RM_Lbs, results) {
+    const low = results.ce1RMLow;
+    const high = results.ce1RMHigh;
+    const midPoint = (low + high) / 2;
+    const percentageDifference = ((actualCE1RM_Lbs - midPoint) / midPoint) * 100; 
+
+    let analysis = '';
+
+    if (actualCE1RM_Lbs >= high) {
+        analysis = `✅ **High Carryover!** Your max is **${Math.round(percentageDifference)}%** above the predicted midpoint. Your ${results.complementaryExercise} is excellent, indicating highly efficient stabilizer muscles and strength transfer.`;
+    } else if (actualCE1RM_Lbs < low) {
+        analysis = `⚠️ **Potential Imbalance.** Your max is **${Math.round(Math.abs(percentageDifference))}%** below the predicted midpoint. For the ${results.complementaryExercise}, you may be limited by factors like stability, grip, or core strength, not pure prime-mover strength. Focus on unilateral/stability work.`;
+    } else {
+        analysis = `👍 **Solid Carryover.** Your max falls within the predicted range. This suggests balanced strength transfer from your ${results.inputExercise} to your ${results.complementaryExercise}. Keep pushing!`;
+    }
+
+    analysis += `<br><br><small>(${results.notes})</small>`;
+    return analysis;
 }
 
 
@@ -136,7 +159,7 @@ function translateMax(exerciseID, weight, reps, bodyWeight, unit) {
     return {
         inputExercise: pairing.inputExercise,
         complementaryExercise: pairing.complementaryExercise,
-        // Store results in LBS, they will be converted on display
+        // Store results in LBS
         ie1RM: input1RM,
         ce1RMLow: ce1RMLow,
         ce1RMHigh: ce1RMHigh,
@@ -182,9 +205,10 @@ function displayResults(results, rating, ratingSource, unit) {
     
     // Initialize Imbalance Insight prompt
     document.getElementById('imbalanceInsight').innerHTML = 
-        `<em>Enter your actual 1RM below in **${unitText}** to receive your personalized imbalance diagnosis.</em>`;
+        `<em>Enter your actual 1RM below in **${unitText}** and click 'ANALYZE IMBALANCE' to receive your personalized diagnosis.</em>`;
     
-    document.getElementById('actualCE1RM').value = ''; // Clear previous value
+    // Clear previous input/value and show the analysis field
+    document.getElementById('actualCE1RM').value = ''; 
     document.getElementById('ceActualName').textContent = results.complementaryExercise;
     document.getElementById('actualMaxInputContainer').style.display = 'block';
     document.getElementById('resultsPanel').style.display = 'block';
@@ -226,18 +250,16 @@ function handleCalculation() {
     }
 }
 
-// NEW: Automated Analysis Logic (triggered by input event)
-function handleAutoAnalysis() {
+// RESTORED: Manual Analysis Logic (triggered by button click)
+function handleAnalysis() {
     // Check if the prediction has been run first
     if (document.getElementById('resultsPanel').style.display === 'none') return;
     
     const actualCE1RM_userUnit = parseFloat(document.getElementById('actualCE1RM').value);
 
-    // If no value is entered, clear analysis and show prompt
+    // Require valid input for analysis
     if (isNaN(actualCE1RM_userUnit) || actualCE1RM_userUnit <= 0) {
-        const unitText = document.querySelector('input[name="unit"]:checked').value.toUpperCase();
-        document.getElementById('imbalanceInsight').innerHTML = 
-            `<em>Enter your actual 1RM below in **${unitText}** to receive your personalized imbalance diagnosis.</em>`;
+        alert("Please enter a valid actual 1RM to perform the imbalance analysis.");
         return;
     }
     
@@ -251,7 +273,7 @@ function handleAutoAnalysis() {
     const reps = parseInt(document.getElementById('repsInput').value);
     const bodyWeight = parseFloat(document.getElementById('bodyWeightInput').value);
     
-    // We only need the predicted range from the translateMax function
+    // Note: We MUST re-run translateMax to get the 'results' object for comparison
     const results = translateMax(exerciseID, weight, reps, bodyWeight, unit); 
 
     if (results) {
@@ -267,7 +289,8 @@ function handleAutoAnalysis() {
 document.addEventListener('DOMContentLoaded', () => {
     const exerciseSelect = document.getElementById('exerciseSelect');
     const calculateButton = document.getElementById('calculateButton');
-    const actualCE1RMInput = document.getElementById('actualCE1RM'); // NEW
+    // --- RESTORED: Define the Analyze Button ---
+    const analyzeButton = document.getElementById('analyzeButton'); 
 
     const unitRadios = document.querySelectorAll('input[name="unit"]');
     const weightInputLabel = document.querySelector('label[for="weightInput"]');
@@ -326,7 +349,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Attach listeners
     calculateButton.addEventListener('click', handleCalculation);
-    actualCE1RMInput.addEventListener('input', handleAutoAnalysis); // NEW: Auto-analyze on input
+    // --- CRITICAL FIX: Attach the click listener for the analysis button ---
+    analyzeButton.addEventListener('click', handleAnalysis); 
+    
     exerciseSelect.addEventListener('change', updateUIText); // Update on pairing change
     
     // Update on unit change (LBS/KG)
